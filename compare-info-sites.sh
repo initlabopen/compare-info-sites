@@ -58,7 +58,7 @@ get_solr_core()
 
 get_db_name()
 {
-	DB=$(drush st --uri=farbors.ru --full | grep 'Database name' | awk -F':' '{print $2}' | sed s/' '//g )
+	DB=$(drush st | grep -E 'Database name|DB name' | awk -F':' '{print $2}' | sed s/' '//g )
         local _res=$?
         if [ $_res -ne 0 ];
         then
