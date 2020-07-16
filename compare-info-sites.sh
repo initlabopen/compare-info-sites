@@ -1,26 +1,59 @@
 #!/bash/bin
 
-# $1 - site dir
-
-#cd $1
-
 get_solr_core()
 {
-	QUERY=`drush --extra="--skip-column-names" sql-query "select options from search_api_server where machine_name='solr'" 2>/dev/null`
-	local _res=$?
-	if [ $_res -ne 0 ];
-	then
-		return $_res
-	else
-		if [ "$QUERY" != "" ];
-		then
-			IFS=';' read -ra ARRAY <<< $QUERY
-			IFS='"' read -ra CORE <<< ${ARRAY[11]}
-			echo "${CORE[1]}"
-		else
-			return 1
-		fi
-	fi
+        site_version=$(drush st | grep 'Drupal version' | awk -F':' '{print $2}' | sed s/' '//g)
+        local _res=$?
+        if [ $_res -ne 0 ] || [ "$site_version" == "" ];
+        then
+                echo "Error: not get version drupal"
+                return $_res
+        fi
+
+        if [[ -n $(echo "$site_version" | sed -n '/^8./p') ]];
+        then
+                QUERY=`drush --extra="--skip-column-names" sql-query "select data from config where name='search_api.server.solr_index';" 2>/dev/null`
+		INDEX=36
+        else
+                if [[ -n $(echo "$site_version" | sed -n '/^7./p') ]];
+                then
+                        echo "drupal 7"
+			exist_table=$(drush --extra="--skip-column-names" sql-query "SHOW TABLES LIKE 'search_api_server';")
+        _res=$?
+        if [ $_res -ne 0 ] || [ "$site_version" == "" ];
+        then
+                echo "Error: not get version drupal"
+                return $_res
+        fi
+			if [ "$exist_table" == "" ];
+			then
+				echo "None"
+				return 0
+			else
+	                        QUERY=`drush --extra="--skip-column-names" sql-query "select options from search_api_server where machine_name='solr'" 2>/dev/null`
+				INDEX=11
+			fi
+                else
+                        echo "Error: not detected version drupal"
+                        return 1
+                fi
+        fi
+        _res=$?
+        if [ $_res -ne 0 ];
+        then
+                echo "Error: not execute query to db"
+                return $_res
+        else
+                if [ "$QUERY" != "" ];
+                then
+                        IFS=';' read -ra ARRAY <<< $QUERY
+                        IFS='"' read -ra CORE <<< ${ARRAY[$INDEX]}
+                        echo "${CORE[1]}"
+                else
+                        echo "None"
+                fi
+        fi
+
 }
 
 get_db_name()
