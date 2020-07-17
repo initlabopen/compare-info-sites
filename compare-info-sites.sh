@@ -2,7 +2,7 @@
 
 get_solr_core()
 {
-        site_version=$(drush st | grep 'Drupal version' | awk -F':' '{print $2}' | sed s/' '//g)
+        site_version=$(drush st 2>/dev/null | grep 'Drupal version' | awk -F':' '{print $2}' | sed s/' '//g)
         local _res=$?
         if [ $_res -ne 0 ] || [ "$site_version" == "" ];
         then
@@ -17,8 +17,7 @@ get_solr_core()
         else
                 if [[ -n $(echo "$site_version" | sed -n '/^7./p') ]];
                 then
-                        echo "drupal 7"
-			exist_table=$(drush --extra="--skip-column-names" sql-query "SHOW TABLES LIKE 'search_api_server';")
+			exist_table=$(drush --extra="--skip-column-names" sql-query "SHOW TABLES LIKE 'search_api_server';" 2>/dev/null)
         _res=$?
         if [ $_res -ne 0 ] || [ "$site_version" == "" ];
         then
@@ -58,16 +57,18 @@ get_solr_core()
 
 get_db_name()
 {
-	DB=$(drush st | grep -E 'Database name|DB name' | awk -F':' '{print $2}' | sed s/' '//g )
+	DB=$(drush st 2>/dev/null | grep -E 'Database name|DB name' | awk -F':' '{print $2}' | sed s/' '//g )
         local _res=$?
         if [ $_res -ne 0 ];
-        then
-                return $_res
+        then	
+                echo "Error: not get Database name"
+		return $_res
         else
                 if [ "$DB" != "" ];
                 then
                         echo "${DB}"
                 else
+	                echo "Error: Database name is empty"
                         return 1
                 fi
         fi
@@ -77,49 +78,80 @@ get_db_name()
 
 get_memcached_key()
 {
-	site_path=$(drush st --uri=farbors.ru | grep 'Site path' | awk -F':' '{print $2}' | sed s/' '//g )
+	site_path=$(drush st 2>/dev/null | grep 'Site path' | awk -F':' '{print $2}' | sed s/' '//g )
         local _res=$?
         if [ $_res -ne 0 ];
         then
+                echo "Error: not get Site path"
                 return $_res
         fi
 
-	cache_default_class=$(php -r 'include $argv[1]."/settings.php"; echo $conf["cache_default_class"] ;' "$site_path" 2>/dev/null)
+	cache_default_class=$(php -r 'include $argv[1]."/settings.php"; if (isset($conf["cache_default_class"])) {print_r($conf["cache_default_class"]);}' "$site_path" 2>/dev/null)
         local _res=$?
         if [ $_res -ne 0 ];
         then
+                echo "Error: not get cache_default_class"
                 return $_res
 	fi
 	if [ "$cache_default_class" != "" ];
 	then
-	        memcache_key_prefix=$(php -r 'include "sites/default/settings.php"; print_r($conf["memcache_key_prefix"]);' 2>/dev/null)
+		if [ "$cache_default_class" == "MemcacheStorage" ];
+		then
+	        	memcache_key_prefix=$(php -r 'include $argv[1]."/settings.php"; if (isset($conf["memcache_storage_key_prefix"])) {print_r($conf["memcache_storage_key_prefix"]);}' "$site_path" 2>/dev/null)
+		else
+			if [ "$cache_default_class" == "MemCacheDrupal" ];
+			then
+			        memcache_key_prefix=$(php -r 'include $argv[1]."/settings.php"; if (isset($conf["memcache_key_prefix"])) {print_r($conf["memcache_key_prefix"]);}' "$site_path" 2>/dev/null)
+			else
+				echo "$cache_default_class None"
+				return 0
+			fi
+		fi
 	        local _res=$?
 	        if [ $_res -ne 0 ];
 	        then
+	                echo "Error: not get memcache_storage_key_prefix/memcache_key_prefix"
 	                return $_res
 	        fi
 	        if [ "$memcache_key_prefix" != "" ];
 	        then
 	                echo "$cache_default_class $memcache_key_prefix"
 	        else
+	                echo "Error: not set memcache_storage_key_prefix/memcache_key_prefix"
 			return 1
 	        fi
 	else
-	        echo "None"
+	        echo "None None"
 	fi
 }
 
 get_base_url()
 {
-        site_path=$(drush st --uri=farbors.ru | grep 'Site path' | awk -F':' '{print $2}' | sed s/' '//g )
+        site_version=$(drush st 2>/dev/null | grep 'Drupal version' | awk -F':' '{print $2}' | sed s/' '//g)
+        local _res=$?
+        if [ $_res -ne 0 ] || [ "$site_version" == "" ];
+        then
+                echo "Error: not get version drupal"
+                return $_res
+        fi
+
+        if [[ -z $(echo "$site_version" | sed -n '/^7./p') ]];
+        then
+		echo "None"
+		return 0
+	fi
+
+        site_path=$(drush st 2>/dev/null | grep 'Site path' | awk -F':' '{print $2}' | sed s/' '//g )
         local _res=$?
         if [ $_res -ne 0 ];
         then
+                echo "Error: not get Site path"
                 return $_res
         fi
-	base_url=$(php -r 'include "sites/default/settings.php"; echo $base_url ;' 2>/dev/null)
+	base_url=$(php -r 'include $argv[1]."/settings.php"; if (isset($base_url)) { print_r($base_url) ;}' "$site_path" 2>/dev/null)
         if [ $_res -ne 0 ];
         then
+                echo "Error: not get base_url"
                 return $_res
         fi
         if [ "$base_url" != "" ];
@@ -127,7 +159,7 @@ get_base_url()
 		echo "$base_url"
 
         else
-                return 1
+                echo "None"
         fi
 }
 
@@ -142,10 +174,11 @@ fi
 echo "Проверка сайта №1 $1 ..."
 cd $1
 pwd
-        info_site1[solr]=$(get_solr_core)
+        info_site1[0]=$(get_solr_core)
         if [ $? -ne 0 ];
         then
                 echo "Error check solr"
+		echo "${info_site1[0]}"
                 exit 1
         fi
 
@@ -153,6 +186,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check DB"
+		echo "${info_site1[1]}"
                 exit 1
         fi
 
@@ -161,6 +195,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check memcached key"
+		echo "${info_site1[2]}"
                 exit 1
         fi
 
@@ -168,6 +203,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check base url"
+		echo "${info_site1[3]}"
                 exit 1
         fi
 
@@ -187,6 +223,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check solr"
+		echo "${info_site2[0]}"
                 exit 1
         fi
 
@@ -194,6 +231,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check DB"
+		echo "${info_site2[1]}"
                 exit 1
         fi
 
@@ -202,6 +240,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check memcached key"
+		echo "${info_site2[2]}"
                 exit 1
         fi
 
@@ -209,6 +248,7 @@ pwd
         if [ $? -ne 0 ];
         then
                 echo "Error check base url"
+		echo "${info_site2[3]}"
                 exit 1
         fi
 
