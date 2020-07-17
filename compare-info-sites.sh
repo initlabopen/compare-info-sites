@@ -121,7 +121,7 @@ get_memcached_key()
 			return 1
 	        fi
 	else
-	        echo "None None"
+	        echo "None"
 	fi
 }
 
