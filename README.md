@@ -1,5 +1,5 @@
 # compare-info-sites
-##Скрипт для получения информации о настройках Drupal сайтов.
+## Скрипт для получения информации о настройках Drupal сайтов.
 
 Информация о настройках сайта выводится в виде:
 <solr core> <db name> <cache default class> <memcached key prefix> <base url>
