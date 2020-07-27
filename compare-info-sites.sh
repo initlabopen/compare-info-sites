@@ -260,7 +260,7 @@ echo ""
 echo "Сравнение настроек сайтов"
 for (( i=0; i <= 3; i++ ))
 do
-if [ "${info_site1[$i]}" == "${info_site2[$i]}" ];
+if [[ "${info_site1[$i]}" == "${info_site2[$i]}" &&  "${info_site1[$i]}" != "None" && "${info_site2[$i]}" != "None" ]];
 then
 	echo "!!! Значения совпадают на сайтах: $i '${info_site1[$i]}' '${info_site2[$i]}'"
 else
