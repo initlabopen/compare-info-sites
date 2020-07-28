@@ -29,7 +29,7 @@ get_solr_core()
 				echo "None"
 				return 0
 			else
-	                        QUERY=`drush --extra="--skip-column-names" sql-query "select options from search_api_server where enabled=1" 2>/dev/null`				
+	                        QUERY=`drush --extra="--skip-column-names" sql-query "select options from search_api_server where enabled=1 and class = 'search_api_solr_service'" 2>/dev/null`				
 				INDEX=11
 			fi
                 else
